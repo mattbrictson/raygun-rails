@@ -1,26 +1,65 @@
-dependencies:
-  pre:
-    # Let's make sure we're always using the latest rubygems and bundler.
-    - gem update --system
-    - gem install bundler
+version: 2
+jobs:
+  build:
+    working_directory: ~/app-prototype
+    docker:
+      - image: circleci/ruby:2.4.1-node
+      - image: circleci/postgres:9.6.3-alpine
+    steps:
+      - checkout
 
-test:
-  override:
-    # Default task runs all specs (ruby and javascript).
-    - bundle exec rake
-  post:
-    # Make sure seed and sample_data still run correctly, since they're easy to miss.
-    - bundle exec rake db:seed db:sample_data
+      # Restore bundle cache
+      - type: cache-restore
+        key: cache-{{ checksum "Gemfile.lock" }}
 
-deployment:
-  acceptance:
-    branch: development
-    commands:
-      - ./bin/deploy.sh app-prototype-acceptance:
-          timeout: 360
+      # Bundle install dependencies
+      - run: bundle install --path vendor/bundle
 
-  production:
-    branch: master
-    commands:
-      - ./bin/deploy.sh app-prototype:
-          timeout: 360
+      # Store bundle cache
+      - type: cache-save
+        key: cache-{{ checksum "Gemfile.lock" }}
+        paths:
+          - vendor/bundle
+
+      # Database setup
+      - run: bundle exec rake db:setup
+
+      # Run rspec in parallel
+      - type: shell
+        command: |
+          bundle exec rspec --profile 10 \
+                            --format RspecJunitFormatter \
+                            --out /tmp/test-results/rspec.xml \
+                            --format progress \
+                            $(circleci tests glob "spec/**/*_spec.rb" | circleci tests split --split-by=timings)
+
+      # Save artifacts
+      - type: store_test_results
+        path: /tmp/test-results
+
+#dependencies:
+#  pre:
+#    # Let's make sure we're always using the latest rubygems and bundler.
+#    - gem update --system
+#    - gem install bundler
+#
+#test:
+#  override:
+#    # Default task runs all specs (ruby and javascript).
+#    - bundle exec rake
+#  post:
+#    # Make sure seed and sample_data still run correctly, since they're easy to miss.
+#    - bundle exec rake db:seed db:sample_data
+#
+#deployment:
+#  acceptance:
+#    branch: development
+#    commands:
+#      - ./bin/deploy.sh app-prototype-acceptance:
+#          timeout: 360
+#
+#  production:
+#    branch: master
+#    commands:
+#      - ./bin/deploy.sh app-prototype:
+#          timeout: 360
