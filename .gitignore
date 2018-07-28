@@ -20,4 +20,10 @@
 
 # Ignore compiled assets.
 /public/assets
+/public/static/
+/public/asset-manifest.json
+/public/index.html
+/public/manifest.json
+/public/service-worker.js
+/public/favicon.ico
 /node_modules
